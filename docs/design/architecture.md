@@ -45,14 +45,15 @@ qingjian/
 │   ├── qingjian-lm/            # 整句转换的 bigram 语言模型：LanguageModel 的实现
 │   ├── qingjian-neural/        # 字级 Transformer 的本地推理（candle）：SentenceScorer 的实现，给整句前几条路径重打分
 │   ├── qingjian-format/        # .qj 数据容器：mmap 打开、零拷贝视图、写入器、可落盘的哈希索引（dictionary / lm 依赖它）
+│   ├── qingjian-render/        # 自绘渲染器：把候选窗一帧画成位图，各平台只负责贴图
+│   ├── qingjian-update/        # 检查更新：读官网 releases.json、验 ed25519 签名、按平台与渠道挑出比当前新的版本
 │   └── qingjian-platform/      # 平台层共用的部分：配置文件、协议类型
 │
 ├── apps/
 │   ├── cli/                    # 测试工具：查询、逐键计时、输入日志回放评测、整句评测
 │   ├── macos/                  # IMK 输入法壳（app / host / imk / candidates / menubar / preferences）
-│   ├── windows/                # Server 进程（IPC 分派 + Engine + 命名管道）
-│   ├── windows-tsf/            # TSF 文本服务 DLL（cdylib）：COM 链路 + 连 Server 的管道客户端
-│   └── linux/                  # 规划
+│   ├── windows/                # Windows 一组：server/（Server 进程：IPC 分派 + Engine + 命名管道）、tsf/（TSF 文本服务 DLL（cdylib）：COM 链路 + 连 Server 的管道客户端）、settings/（设置界面：读写 config.toml，对齐 macOS 偏好设置）、installer/ 与 scripts/
+│   └── linux/                  # 已落地：server/（独立 Server 进程，Unix socket，与 Windows 同构）、fcitx5/ 插件、scripts/ 打包、tests/
 │
 ├── tools/
 │   ├── dict-convert/           # 产品数据生成：lexicon / bigram / mine / english / emoji / pack
@@ -138,11 +139,13 @@ qingjian-core
 ## crate 依赖方向
 
 ```text
-qingjian-dictionary        （纯数据加载与查询，不依赖任何兄弟 crate）
+qingjian-format             （.qj 数据容器：mmap、零拷贝视图、哈希索引）
+        ▲
+qingjian-dictionary        （数据加载与查询，依赖 format 读 .qj）
         ▲
 qingjian-core              （定义 Translator / Learner / Predictor trait，依赖 dictionary）
         ▲           ▲            ▲
-qingjian-translate  qingjian-learning  qingjian-predict  qingjian-lm  qingjian-neural   （实现 core 的 trait，依赖 core；learning 另依赖 translate 的 LevelTable 做词汇按级汇总）
+qingjian-translate  qingjian-learning  qingjian-predict  qingjian-lm  qingjian-neural   （实现 core 的 trait，依赖 core；learning 另依赖 translate 的 LevelTable，lm 另依赖 format）
         ▲           ▲            ▲
 qingjian-platform          （配置文件 Config：general / shortcut / fuzzy / predict 分节，toml_edit 原地改键保留注释；协议类型，可序列化；依赖 core、predict）
         ▲
